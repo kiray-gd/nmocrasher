@@ -1,6 +1,10 @@
 # nmocrasher
 Программа для автоматического внесения ответов в тесты НМО  
 
+Подробный гайд как пользоваться программой
+https://telegra.ph/Kak-polzovatsya-nmocrasher-07-31
+
+Коротко о содержимом гайда
 Для работы необходимо расширение для браузера tamper monkey  
 Для хрома https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=ru  
 Для Firefox https://addons.mozilla.org/ru/firefox/addon/tampermonkey  
@@ -11,3 +15,4 @@
 4)ждем  
 5)на последнем вопросе нажимаем "Завершить тест"  
 6)Вы великолепны!
+
