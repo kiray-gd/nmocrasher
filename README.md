@@ -5,6 +5,7 @@
 https://telegra.ph/Kak-polzovatsya-nmocrasher-07-31
 
 Коротко о содержимом гайда
+
 Для работы необходимо расширение для браузера tamper monkey  
 Для хрома https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=ru  
 Для Firefox https://addons.mozilla.org/ru/firefox/addon/tampermonkey  
