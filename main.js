@@ -1,228 +1,298 @@
 // ==UserScript==
-// @name         Автоматизация Тестов
+// @name         Решатель НМО
 // @namespace    http://tampermonkey.net/
-// @version      2.5
-// @description  Автоматизирует решение тестов с использованием ответов с другого сайта
+// @version      2.11
+// @description  Использует текст с одной страницы для поиска на другой странице, извлекает ответы, возвращается на исходный сайт и автоматически заполняет тест
 // @author       kiraygd
-// @match        *://iomqt-vo.edu.rosminzdrav.ru/*
-// @match        *://nmfo-vo.edu.rosminzdrav.ru/*
+// @match        https://iomqt-vo.edu.rosminzdrav.ru/*
+// @match        https://24forcare.com/search/*
+// @match        https://24forcare.com/testyi-nmo/*
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @grant        GM_xmlhttpRequest
-// @grant        GM_addStyle
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
 // ==/UserScript==
-/* globals jQuery, $, waitForKeyElements */
 
 (function() {
     'use strict';
 
-    let answersUrl = '';
-
-    // Функция для отображения модального окна с вводом URL
-    function showUrlInputModal() {
-        const modalHtml = `
-            <div id="urlInputModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center;">
-                <div style="background: #fff; padding: 20px; border-radius: 5px; width: 300px; text-align: center;">
-                    <h2>Введите URL с ответами</h2>
-                    <input type="text" id="answersUrlInput" style="width: 100%; padding: 8px;" placeholder="https://example.com/answers">
-                    <button id="submitUrlButton" style="margin-top: 10px; padding: 10px 20px;">OK</button>
-                </div>
-            </div>
-        `;
-
-        $('body').append(modalHtml);
-
-        $('#submitUrlButton').on('click', function() {
-            const url = $('#answersUrlInput').val();
-            if (url) {
-                answersUrl = url;
-                $('#urlInputModal').remove();
-                main(); // Запускаем основную функцию
-            } else {
-                alert('Пожалуйста, введите корректный URL');
-            }
-        });
+    // Функция для извлечения текста
+    function extractText() {
+        const cardTitle = document.querySelector('mat-panel-title');
+        if (cardTitle) {
+            let text = cardTitle.textContent.trim();
+            console.log(`Extracted text: ${text}`);
+            // Убираем подстроку " - Итоговое тестирование"
+            text = text.replace(" - Итоговое тестирование", "");
+            console.log(`Text after removing suffix: ${text}`);
+            return text;
+        }
+        console.error('Card title element not found');
+        return null;
     }
 
-    function fetchAnswers() {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url: answersUrl,
-                onload: function(response) {
-                    if (response.status === 200) {
-                        console.log("Ответы успешно загружены");
-                        const answers = parseAnswers(response.responseText);
-                        console.log("Ответы:", answers);
-                        resolve(answers);
-                    } else {
-                        reject(`Ошибка при загрузке ответов: ${response.statusText}`);
-                    }
-                },
-                onerror: function(error) {
-                    reject(`Ошибка запроса: ${error}`);
+    // Функция для выполнения поиска на 24forcare.com
+    function searchOn24forcare(query) {
+        const url = `https://24forcare.com/search/?query=${encodeURIComponent(query)}`;
+        console.log('Navigating to:', url);
+        setTimeout(() => {
+            window.location.href = url;
+        }, 100);
+    }
+
+    // Функция для извлечения вопросов и ответов
+    function extractAnswers() {
+        setTimeout(() => {
+            console.log('Starting to extract answers...');
+            const questions = document.querySelectorAll('h3');
+            const answersArray = [];
+
+            if (questions.length === 0) {
+                console.log('No questions found on the page');
+            }
+
+            questions.forEach(questionElement => {
+                let questionText = questionElement.textContent.trim();
+                console.log(`Found question text: ${questionText}`);
+
+                // Удаляем все цифры и точку в начале строки
+                questionText = questionText.replace(/^\d+\.\s*/, '');
+                console.log(`Processed question text: ${questionText}`);
+
+                const answerElement = questionElement.nextElementSibling;
+                if (answerElement) {
+                    const correctAnswers = Array.from(answerElement.querySelectorAll('strong'))
+                                               .filter(el => el.textContent.includes('+'))
+                                               .map(el => {
+                                                   // Обрезаем последние символы
+                                                   let answerText = el.textContent.replace('+', '').trim();
+                                                   answerText = answerText.slice(3, -1);
+                                                   return answerText;
+                                               });
+                    answersArray.push({
+                        question: questionText,
+                        answers: correctAnswers
+                    });
+                } else {
+                    console.log(`Answer element not found for question: ${questionText}`);
                 }
             });
-        });
-    }
 
-    function parseAnswers(responseText) {
-        const answers = {};
-        const doc = new DOMParser().parseFromString(responseText, 'text/html');
-        const questions = $(doc).find('h3');
-        questions.each(function() {
-            const questionText = $(this).text().trim();
-            const answerElements = $(this).next('p').find('strong');
-            const answerTexts = [];
-            answerElements.each(function() {
-                const answerText = $(this).text().replace(/^\d+\)\s+/, '').trim();
-                const trimmedAnswer = answerText.substring(0, answerText.length - 2); // Убираем два последних символа
-                answerTexts.push(trimmedAnswer);
-            });
-            answers[questionText] = answerTexts;
-        });
-        return answers;
-    }
+            if (answersArray.length === 0) {
+                console.log('No answers extracted');
+            } else {
+                console.log('Extracted answers:', answersArray);
 
-    function findAnswer(question, answers) {
-        const normalizedQuestion = question.toLowerCase();
-        for (let key in answers) {
-            const normalizedKey = key.toLowerCase();
-            if (normalizedKey.includes(normalizedQuestion)) {
-                return answers[key];
+                // Сохраняем массив вопросов и ответов
+                GM_setValue('answersArray', JSON.stringify(answersArray));
+
+                // Показываем сообщение о завершении извлечения ответов
+                showCompletionMessage();
+
+                // Возвращаемся на исходный сайт через 3 секунды
+                const originalUrl = GM_getValue('originalUrl');
+                if (originalUrl) {
+                    console.log('Returning to the original site...');
+                    setTimeout(() => {
+                        window.location.href = originalUrl;
+                    }, 3000); // Задержка перед возвратом на исходный URL
+                } else {
+                    console.error('Original URL is not available');
+                }
             }
-        }
-        return undefined;
+        }, 2000); // 2 секунды задержки для извлечения ответов
     }
 
-   function fillTests(answers) {
-       console.log("Заполняем тесты");
-
-       const questionElement = $('.question-title-text').first();
-       if (questionElement.length === 0) {
-           console.log("Вопрос не найден.");
-           return;
-       }
-
-       const question = questionElement.text().trim();
-       console.log("Вопрос:", question);
-
-       logAvailableAnswers(); // Вывод доступных вариантов ответов
-
-       const answer = findAnswer(question, answers);
-       console.log("Ответ:", answer);
-
-       if (!answer) {
-           console.log("Ответ не найден.");
-           goToNextQuestion();
-           return;
-       }
-
-       const questionTypeElement = $('.mat-card-question__type').first();
-       const questionType = questionTypeElement.text().trim();
-       console.log("Тип вопроса:", questionType);
-
-       if (questionType.includes("ОДИН")) {
-           $('mat-radio-button').each(function () {
-               const radioButton = $(this);
-               const radioButtonLabel = radioButton.find('.question-inner-html-text').text();
-               const containsAnswer = answer.includes(radioButtonLabel);
-               console.log("Сравнение ответа", radioButtonLabel, "с верным ответом:", containsAnswer);
-               if (containsAnswer) {
-                   console.log("Нажимаем кнопку:", radioButtonLabel);
-                   const inputElement = radioButton.find('input')[0];
-                   inputElement.setAttribute('checked', 'true');
-
-                   // Вызов событий через нативный JavaScript
-                   ['click', 'input', 'change'].forEach(eventType => {
-                       const event = new Event(eventType, { bubbles: true });
-                       inputElement.dispatchEvent(event);
-                   });
-                   return false; // Прекращаем итерацию
-               }
-           });
-           goToNextQuestion();
-       } else if (questionType.includes("НЕСКОЛЬКО")) {
-           console.log("LETS GO несколько");
-
-           let answerIndex = 0;
-           function clickCheckboxes() {
-               if (answerIndex >= answer.length) {
-                   goToNextQuestion();
-                   return;
-               }
-
-               $('mat-checkbox').each(function () {
-                   const checkBox = $(this);
-                   const checkBoxLabel = checkBox.find('.question-inner-html-text').text().trim();
-                   if (answer.some(ans => ans.trim() === checkBoxLabel)) {
-                       console.log("Нажимаем чекбокс:", checkBoxLabel);
-                       const inputElement = checkBox.find('input')[0];
-
-                       if (!inputElement.checked) {
-                           inputElement.setAttribute('checked', 'true');
-
-                           // Вызов событий через нативный JavaScript
-                           ['click', 'input', 'change'].forEach(eventType => {
-                               const event = new Event(eventType, { bubbles: true });
-                               inputElement.dispatchEvent(event);
-                           });
-                       }
-                   }
-               });
-
-               answerIndex++;
-               setTimeout(clickCheckboxes, 500); // Задержка между кликами
-           }
-
-           clickCheckboxes();
-       } else {
-           console.log("Неизвестный тип вопроса:", questionType);
-           goToNextQuestion();
-       }
-   }
-
-    function goToNextQuestion() {
-        const nextButton = $('button:contains("Следующий вопрос")');
-        const finishButton = $('button:contains("Завершить тестирование")');
-        if (nextButton.length > 0) {
-            nextButton.click();
-        } else if (finishButton.length > 0) {
-            console.log("Кнопка для завершения тестирования найдена. Скрипт останавливается.");
-            return; // Останавливаем выполнение скрипта
-        } else {
-            console.log("Кнопка для перехода к следующему вопросу не найдена. Скрипт останавливается.");
-            return; // Останавливаем выполнение скрипта
-        }
+    // Функция для отображения сообщения о завершении извлечения ответов
+    function showCompletionMessage() {
+        const messageDiv = document.createElement('div');
+        messageDiv.textContent = 'Ответы загружены. Ждите.';
+        messageDiv.style.position = 'fixed';
+        messageDiv.style.top = '50%';
+        messageDiv.style.left = '50%';
+        messageDiv.style.transform = 'translate(-50%, -50%)';
+        messageDiv.style.padding = '20px';
+        messageDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        messageDiv.style.color = 'white';
+        messageDiv.style.fontSize = '24px';
+        messageDiv.style.zIndex = '10000';
+        messageDiv.style.textAlign = 'center';
+        document.body.appendChild(messageDiv);
     }
 
+    // Добавляем кнопку для запуска поиска на iomqt-vo.edu.rosminzdrav.ru
+    if (window.location.hostname === 'iomqt-vo.edu.rosminzdrav.ru') {
+        // Сохраняем текущий URL в GM_setValue
+        GM_setValue('originalUrl', window.location.href);
+        console.log(`Original URL saved: ${window.location.href}`);
 
+        const searchButton = document.createElement('button');
+        searchButton.textContent = 'Включить автотест';
+        searchButton.style.position = 'fixed';
+        searchButton.style.top = '10px';
+        searchButton.style.right = '10px';
+        searchButton.style.zIndex = '1000';
+        searchButton.style.padding = '10px';
+        searchButton.style.backgroundColor = '#4CAF50';
+        searchButton.style.color = 'white';
+        searchButton.style.border = 'none';
+        searchButton.style.borderRadius = '5px';
+        searchButton.style.cursor = 'pointer';
 
-    function logAvailableAnswers() {
-        const availableAnswers = [];
-        $('.question-inner-html-text').each(function () {
-            availableAnswers.push($(this).text().trim());
+        searchButton.addEventListener('click', function() {
+            const query = extractText();
+            if (query) {
+                searchOn24forcare(query);
+            } else {
+                console.error('Не удалось найти элемент с текстом!');
+            }
         });
-        console.log("Доступные варианты ответов на текущий вопрос:", availableAnswers);
+
+        document.body.appendChild(searchButton);
     }
 
-    async function main() {
-        try {
-            const answers = await fetchAnswers();
-
-            const observer = new MutationObserver(() => {
-                //setTimeout(() => { // Добавляем задержку на поиск ответа
-                    fillTests(answers);
-                //}, 2000); // Увеличиваем время ожидания до 2 секунд
-            });
-
-            observer.observe(document.body, { childList: true, subtree: true });
-
-            fillTests(answers);
-        } catch (error) {
-            console.error(`Ошибка: ${error}`);
-        }
+    // Запуск извлечения ответов на 24forcare.com
+    if (window.location.hostname === '24forcare.com' && window.location.pathname.startsWith('/testyi-nmo/')) {
+        window.addEventListener('load', function() {
+            console.log('Page loaded, extracting answers...');
+            extractAnswers();
+        });
     }
 
-    // Запускаем модальное окно для ввода URL
-    showUrlInputModal();
+    // Автоматическое заполнение теста на исходной странице
+    if (window.location.hostname === 'iomqt-vo.edu.rosminzdrav.ru') {
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                const savedAnswersArray = GM_getValue('answersArray');
+                if (savedAnswersArray) {
+                    const answersArray = JSON.parse(savedAnswersArray);
+                    console.log('Retrieved answers array:', answersArray);
+
+                    function findAnswer(question) {
+                        const normalizedQuestion = question.toLowerCase();
+                        for (let item of answersArray) {
+                            const normalizedKey = item.question.toLowerCase();
+                            if (normalizedKey.includes(normalizedQuestion)) {
+                                return item.answers;
+                            }
+                        }
+                        return undefined;
+                    }
+
+                    function fillTests() {
+                        console.log("Заполняем тесты");
+
+                        const questionElement = document.querySelector('.question-title-text');
+                        if (!questionElement) {
+                            console.log("Вопрос не найден.");
+                            return;
+                        }
+
+                        const question = questionElement.textContent.trim();
+                        console.log("Текущий вопрос:", question); // Выводим текущий вопрос в консоль
+
+                        logAvailableAnswers(); // Вывод доступных вариантов ответов
+
+                        const answers = findAnswer(question);
+                        console.log("Ответы:", answers);
+
+                        if (!answers) {
+                            console.log("Ответы не найдены.");
+                            goToNextQuestion();
+                            return;
+                        }
+
+                        const questionTypeElement = document.querySelector('.mat-card-question__type');
+                        const questionType = questionTypeElement ? questionTypeElement.textContent.trim() : '';
+                        console.log("Тип вопроса:", questionType);
+
+                        if (questionType.includes("ОДИН")) {
+                            document.querySelectorAll('mat-radio-button').forEach(radioButton => {
+                                const radioButtonLabel = radioButton.querySelector('.question-inner-html-text').textContent.trim();
+                                const containsAnswer = answers.includes(radioButtonLabel);
+                                console.log("Сравнение ответа", radioButtonLabel, "с верным ответом:", containsAnswer);
+                                if (containsAnswer) {
+                                    console.log("Нажимаем кнопку:", radioButtonLabel);
+                                    const inputElement = radioButton.querySelector('input');
+                                    inputElement.checked = true;
+
+                                    // Вызов событий через нативный JavaScript
+                                    ['click', 'input', 'change'].forEach(eventType => {
+                                        const event = new Event(eventType, { bubbles: true });
+                                        inputElement.dispatchEvent(event);
+                                    });
+                                    return false; // Прекращаем итерацию
+                                }
+                            });
+                            goToNextQuestion();
+                        } else if (questionType.includes("НЕСКОЛЬКО")) {
+                            console.log("LETS GO несколько");
+
+                            let answerIndex = 0;
+                            function clickCheckboxes() {
+                                if (answerIndex >= answers.length) {
+                                    goToNextQuestion();
+                                    return;
+                                }
+
+                                document.querySelectorAll('mat-checkbox').forEach(checkBox => {
+                                    const checkBoxLabel = checkBox.querySelector('.question-inner-html-text').textContent.trim();
+                                    if (answers.some(ans => ans.trim() === checkBoxLabel)) {
+                                        console.log("Нажимаем чекбокс:", checkBoxLabel);
+                                        const inputElement = checkBox.querySelector('input');
+
+                                        if (!inputElement.checked) {
+                                            inputElement.checked = true;
+
+                                            // Вызов событий через нативный JavaScript
+                                            ['click', 'input', 'change'].forEach(eventType => {
+                                                const event = new Event(eventType, { bubbles: true });
+                                                inputElement.dispatchEvent(event);
+                                            });
+                                        }
+                                    }
+                                });
+
+                                answerIndex++;
+                                setTimeout(clickCheckboxes, 500); // Задержка между кликами
+                            }
+
+                            clickCheckboxes();
+                        } else {
+                            console.log("Неизвестный тип вопроса:", questionType);
+                            goToNextQuestion();
+                        }
+                    }
+
+                    function logAvailableAnswers() {
+                        console.log("Доступные варианты ответов:");
+                        document.querySelectorAll('.question-inner-html-text').forEach(el => {
+                            console.log(el.textContent.trim());
+                        });
+                    }
+
+                    function goToNextQuestion() {
+                        console.log("Переход к следующему вопросу");
+                        const nextButton = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.includes("Следующий вопрос"));
+                        const finishButton = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.includes("Завершить"));
+                        if (nextButton) {
+                            nextButton.click();
+                            setTimeout(fillTests, 500); // Задержка для загрузки следующего вопроса
+                        } else if (finishButton) {
+                            console.log("Кнопка для завершения тестирования найдена. Скрипт останавливается.");
+                            alert("Тест пройден. Вы великолепны! (author kiraygd)");
+                            return; // Останавливаем выполнение скрипта
+                        } else {
+                            console.log("Кнопка для перехода к следующему вопросу не найдена. Скрипт останавливается.");
+                            return; // Останавливаем выполнение скрипта
+                        }
+                    }
+
+                    fillTests();
+                } else {
+                    console.log('Answers array is not available');
+                }
+            }, 3000); // Задержка перед поиском вопроса
+        });
+    }
 })();
