@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Решатель НМО
 // @namespace    http://tampermonkey.net/
-// @version      2.25
+// @version      2.31
 // @description  Использует текст с одной страницы для поиска на другой странице, извлекает ответы, возвращается на исходный сайт и автоматически заполняет тест
 // @author       kiraygd
-// @match        https://iomqt-vo.edu.rosminzdrav.ru/*
+// @match        *.edu.rosminzdrav.ru/*
 // @match        https://24forcare.com/search/*
 // @match        https://24forcare.com/testyi-nmo/*
 // @grant        GM_setValue
@@ -129,8 +129,8 @@
         document.body.appendChild(messageDiv);
     }
 
-    // Добавляем кнопку для запуска поиска на iomqt-vo.edu.rosminzdrav.ru
-    if (window.location.hostname === 'iomqt-vo.edu.rosminzdrav.ru') {
+    // Добавляем кнопку для запуска поиска на edu.rosminzdrav.ru и его поддоменах
+    if (window.location.hostname.endsWith('edu.rosminzdrav.ru')) {
         // Сохраняем текущий URL в GM_setValue
         GM_setValue('originalUrl', window.location.href);
         console.log(`Original URL saved: ${window.location.href}`);
@@ -169,7 +169,7 @@
     }
 
     // Автоматическое заполнение теста на исходной странице
-    if (window.location.hostname === 'iomqt-vo.edu.rosminzdrav.ru') {
+    if (window.location.hostname.endsWith('edu.rosminzdrav.ru')) {
         window.addEventListener('load', function() {
             setTimeout(() => {
                 const savedAnswersArray = GM_getValue('answersArray');
