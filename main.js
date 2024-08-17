@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Решатель НМО
 // @namespace    http://tampermonkey.net/
-// @version      2.11
+// @version      2.12
 // @description  Использует текст с одной страницы для поиска на другой странице, извлекает ответы, возвращается на исходный сайт и автоматически заполняет тест
 // @author       kiraygd
 // @match        https://iomqt-vo.edu.rosminzdrav.ru/*
@@ -22,9 +22,18 @@
         if (cardTitle) {
             let text = cardTitle.textContent.trim();
             console.log(`Extracted text: ${text}`);
+
             // Убираем подстроку " - Итоговое тестирование"
             text = text.replace(" - Итоговое тестирование", "");
             console.log(`Text after removing suffix: ${text}`);
+
+            // Если в строке есть ")", удаляем все после неё (но саму скобку оставляем)
+            const indexOfClosingBracket = text.lastIndexOf(")");
+            if (indexOfClosingBracket !== -1) {
+                text = text.slice(0, indexOfClosingBracket + 1).trim();
+                console.log(`Text after removing characters after closing bracket: ${text}`);
+            }
+
             return text;
         }
         console.error('Card title element not found');
@@ -221,78 +230,33 @@
                                         const event = new Event(eventType, { bubbles: true });
                                         inputElement.dispatchEvent(event);
                                     });
-                                    return false; // Прекращаем итерацию
+                                    return false; // Прекращаем цикл
                                 }
                             });
-                            goToNextQuestion();
-                        } else if (questionType.includes("НЕСКОЛЬКО")) {
-                            console.log("LETS GO несколько");
+                        } else {
+                            const checkboxes = document.querySelectorAll('.mat-checkbox');
+                            checkboxes.forEach(checkbox => {
+                                const checkboxLabel = checkbox.querySelector('.question-inner-html-text').textContent.trim();
+                                const shouldCheck = answers.includes(checkboxLabel);
+                                console.log("Сравнение ответа", checkboxLabel, "с верным ответом:", shouldCheck);
+                                if (shouldCheck) {
+                                    const inputElement = checkbox.querySelector('input');
+                                    inputElement.checked = true;
 
-                            let answerIndex = 0;
-                            function clickCheckboxes() {
-                                if (answerIndex >= answers.length) {
-                                    goToNextQuestion();
-                                    return;
+                                    // Вызов событий через нативный JavaScript
+                                    ['click', 'input', 'change'].forEach(eventType => {
+                                        const event = new Event(eventType, { bubbles: true });
+                                        inputElement.dispatchEvent(event);
+                                    });
                                 }
-
-                                document.querySelectorAll('mat-checkbox').forEach(checkBox => {
-                                    const checkBoxLabel = checkBox.querySelector('.question-inner-html-text').textContent.trim();
-                                    if (answers.some(ans => ans.trim() === checkBoxLabel)) {
-                                        console.log("Нажимаем чекбокс:", checkBoxLabel);
-                                        const inputElement = checkBox.querySelector('input');
-
-                                        if (!inputElement.checked) {
-                                            inputElement.checked = true;
-
-                                            // Вызов событий через нативный JavaScript
-                                            ['click', 'input', 'change'].forEach(eventType => {
-                                                const event = new Event(eventType, { bubbles: true });
-                                                inputElement.dispatchEvent(event);
-                                            });
-                                        }
-                                    }
-                                });
-
-                                answerIndex++;
-                                setTimeout(clickCheckboxes, 500); // Задержка между кликами
-                            }
-
-                            clickCheckboxes();
-                        } else {
-                            console.log("Неизвестный тип вопроса:", questionType);
-                            goToNextQuestion();
-                        }
-                    }
-
-                    function logAvailableAnswers() {
-                        console.log("Доступные варианты ответов:");
-                        document.querySelectorAll('.question-inner-html-text').forEach(el => {
-                            console.log(el.textContent.trim());
-                        });
-                    }
-
-                    function goToNextQuestion() {
-                        console.log("Переход к следующему вопросу");
-                        const nextButton = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.includes("Следующий вопрос"));
-                        const finishButton = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.includes("Завершить"));
-                        if (nextButton) {
-                            nextButton.click();
-                            setTimeout(fillTests, 500); // Задержка для загрузки следующего вопроса
-                        } else if (finishButton) {
-                            console.log("Кнопка для завершения тестирования найдена. Скрипт останавливается.");
-                            alert("Тест пройден. Вы великолепны! (author kiraygd)");
-                            return; // Останавливаем выполнение скрипта
-                        } else {
-                            console.log("Кнопка для перехода к следующему вопросу не найдена. Скрипт останавливается.");
-                            return; // Останавливаем выполнение скрипта
+                            });
                         }
                     }
 
                     fillTests();
-                } else {
-                    console.log('Answers array is not available');
                 }
-            }, 3000); // Задержка перед поиском вопроса
+            }, 5000);
         });
     }
+
 })();
