@@ -177,8 +177,14 @@
                     const answersArray = JSON.parse(savedAnswersArray);
                     console.log('Retrieved answers array:', answersArray);
 
+                    function changeLetters(str) {
+                        const str1 = str.replaceAll('a', 'a')
+                        const normalizedStr = str1.replaceAll('o','o');
+                    return normalizedStr;
+                    }
+
                     function findAnswer(question) {
-                        const normalizedQuestion = question.toLowerCase();
+                        const normalizedQuestion = changeLetters(question).toLowerCase();
                         for (let item of answersArray) {
                             const normalizedKey = item.question.toLowerCase();
                             if (normalizedKey.includes(normalizedQuestion)) {
@@ -217,7 +223,7 @@
 
                         if (questionType.includes("ОДИН")) {
                             document.querySelectorAll('mat-radio-button').forEach(radioButton => {
-                                const radioButtonLabel = radioButton.querySelector('.question-inner-html-text').textContent.trim();
+                                const radioButtonLabel = changeLetters(radioButton.querySelector('.question-inner-html-text').textContent.trim());
                                 const containsAnswer = answers.includes(radioButtonLabel);
                                 console.log("Сравнение ответа", radioButtonLabel, "с верным ответом:", containsAnswer);
                                 if (containsAnswer) {
@@ -245,7 +251,7 @@
                                 }
 
                                 document.querySelectorAll('mat-checkbox').forEach(checkBox => {
-                                    const checkBoxLabel = checkBox.querySelector('.question-inner-html-text').textContent.trim();
+                                    const checkBoxLabel = changeLetters(checkBox.querySelector('.question-inner-html-text').textContent.trim());
                                     if (answers.some(ans => ans.trim() === checkBoxLabel)) {
                                         console.log("Нажимаем чекбокс:", checkBoxLabel);
                                         const inputElement = checkBox.querySelector('input');
