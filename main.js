@@ -178,8 +178,8 @@
                     console.log('Retrieved answers array:', answersArray);
 
                     function changeLetters(str) {
-                        const str1 = str.replaceAll('a', 'a')
-                        const normalizedStr = str1.replaceAll('o','o');
+                        const str1 = str.replaceAll('a', 'а')
+                        const normalizedStr = str1.replaceAll('o','о');
                     return normalizedStr;
                     }
 
