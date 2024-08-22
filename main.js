@@ -178,9 +178,26 @@
                     console.log('Retrieved answers array:', answersArray);
 
                     function changeLetters(str) {
-                        const str1 = str.replaceAll('a', 'а')
-                        const normalizedStr = str1.replaceAll('o','о');
-                    return normalizedStr;
+                        const replacements = {
+                            'a': 'а',
+                            'e': 'е',
+                            'o': 'о',
+                            'c': 'с',
+                            'x': 'х'
+                        };
+                    
+                        for (const [latin, cyrillic] of Object.entries(replacements)) {
+                            // Заменяем латинскую букву на кириллическую, если:
+                            // 1. Она окружена кириллическими буквами
+                            // 2. Или если она стоит одна, окруженная пробелами или знаками препинания
+                            const regex = new RegExp(
+                                `(?<=[\\u0400-\\u04FF])${latin}|${latin}(?=[\\u0400-\\u04FF])|\\b${latin}\\b`,
+                                'gi'
+                            );
+                            str = str.replace(regex, cyrillic);
+                        }
+                    
+                        return str;
                     }
 
                     function findAnswer(question) {
