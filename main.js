@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Решатель НМО
+// @name         автотест
 // @namespace    http://tampermonkey.net/
 // @version      2.31
 // @description  Использует текст с одной страницы для поиска на другой странице, извлекает ответы, возвращается на исходный сайт и автоматически заполняет тест
@@ -28,11 +28,11 @@
             console.log(`Text after removing suffix: ${text}`);
 
             // Находим последний символ ")" и обрезаем строку на этом символе
-            const lastParenthesisIndex = text.lastIndexOf(')');
-            if (lastParenthesisIndex !== -1) {
-                text = text.slice(0, lastParenthesisIndex).trim();
-                console.log(`Text after removing content after last ')': ${text}`);
-            }
+           // const lastParenthesisIndex = text.lastIndexOf(')');
+            //if (lastParenthesisIndex !== -1) {
+                //text = text.slice(0, lastParenthesisIndex).trim();
+               // console.log(`Text after removing content after last ')': ${text}`);
+            //}
 
             return text;
         }
@@ -51,6 +51,29 @@
 
     // Функция для извлечения вопросов и ответов
     function extractAnswers() {
+
+        function changeLetters(str) {
+                        const replacements = {
+                            'a': 'а',
+                            'e': 'е',
+                            'o': 'о',
+                            'c': 'с',
+                            'x': 'х'
+                        };
+
+            for (const [latin, cyrillic] of Object.entries(replacements)) {
+                            // Заменяем латинскую букву на кириллическую, если:
+                            // 1. Она окружена кириллическими буквами
+                            // 2. Или если она стоит одна, окруженная пробелами или знаками препинания
+                            const regex = new RegExp(
+                                `(?<=[\\u0400-\\u04FF])${latin}|${latin}(?=[\\u0400-\\u04FF])|\\b${latin}\\b`,
+                                'gi'
+                            );
+                            str = str.replace(regex, cyrillic);
+                        }
+            return str;
+        }
+
         setTimeout(() => {
             console.log('Starting to extract answers...');
             const questions = document.querySelectorAll('h3');
@@ -76,10 +99,10 @@
                                                    // Обрезаем последние символы
                                                    let answerText = el.textContent.replace('+', '').trim();
                                                    answerText = answerText.slice(3, -1);
-                                                   return answerText;
+                                                   return changeLetters(answerText);
                                                });
                     answersArray.push({
-                        question: questionText,
+                        question: changeLetters(questionText),
                         answers: correctAnswers
                     });
                 } else {
@@ -185,7 +208,7 @@
                             'c': 'с',
                             'x': 'х'
                         };
-                    
+
                         for (const [latin, cyrillic] of Object.entries(replacements)) {
                             // Заменяем латинскую букву на кириллическую, если:
                             // 1. Она окружена кириллическими буквами
@@ -196,7 +219,7 @@
                             );
                             str = str.replace(regex, cyrillic);
                         }
-                    
+
                         return str;
                     }
 
